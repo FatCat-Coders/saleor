@@ -4890,6 +4890,7 @@ type ShippingMethod implements Node & ObjectWithMetadata {
   maximumOrderWeight: Weight
   maximumDeliveryDays: Int
   minimumDeliveryDays: Int
+  description: JSONString
   privateMetadata: [MetadataItem]!
   metadata: [MetadataItem]!
   type: ShippingMethodTypeEnum
@@ -4990,6 +4991,7 @@ input ShippingPriceExcludeProductsInput {
 
 input ShippingPriceInput {
   name: String
+  description: JSONString
   minimumOrderWeight: WeightScalar
   maximumOrderWeight: WeightScalar
   maximumDeliveryDays: Int
