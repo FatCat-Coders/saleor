@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import graphene
 import pytest
+from django.core.files.storage import default_storage
 from django.utils.text import slugify
 from measurement.measures import Weight
 from prices import Money, TaxedMoney
@@ -1903,6 +1904,39 @@ def test_delete_variant(
     assert data["productVariant"]["sku"] == variant.sku
     with pytest.raises(variant._meta.model.DoesNotExist):
         variant.refresh_from_db()
+
+
+@patch("saleor.plugins.manager.PluginsManager.product_variant_deleted")
+def test_delete_variant_with_image(
+    product_variant_deleted_webhook_mock,
+    staff_api_client,
+    variant_with_image,
+    permission_manage_products,
+    media_root,
+):
+    """Ensure deleting variant doesn't delete linked product image."""
+
+    query = DELETE_VARIANT_MUTATION
+    variant = variant_with_image
+    image_paths = [media.image.path for media in variant.media.all()]
+    # ensure that paths exists in default storage
+    assert all([default_storage.exists(path) for path in image_paths])
+
+    variant_id = graphene.Node.to_global_id("ProductVariant", variant.pk)
+    variables = {"id": variant_id}
+    response = staff_api_client.post_graphql(
+        query, variables, permissions=[permission_manage_products]
+    )
+    content = get_graphql_content(response)
+    flush_post_commit_hooks()
+    data = content["data"]["productVariantDelete"]
+
+    product_variant_deleted_webhook_mock.assert_called_once_with(variant)
+    assert data["productVariant"]["sku"] == variant.sku
+    with pytest.raises(variant._meta.model.DoesNotExist):
+        variant.refresh_from_db()
+    # ensure that paths still exists in default storage
+    assert all([default_storage.exists(path) for path in image_paths])
 
 
 def test_delete_variant_in_draft_order(

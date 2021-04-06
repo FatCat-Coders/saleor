@@ -2,6 +2,7 @@ from unittest.mock import Mock
 
 import graphene
 import pytest
+from django.core.files.storage import default_storage
 from graphql_relay import to_global_id
 
 from ....product.error_codes import CollectionErrorCode, ProductErrorCode
@@ -807,16 +808,19 @@ def test_update_collection_slug_and_name(
         assert errors[0]["code"] == ProductErrorCode.REQUIRED.name
 
 
-def test_delete_collection(staff_api_client, collection, permission_manage_products):
-    query = """
-        mutation deleteCollection($id: ID!) {
-            collectionDelete(id: $id) {
-                collection {
-                    name
-                }
+DELETE_COLLECTION_MUTATION = """
+    mutation deleteCollection($id: ID!) {
+        collectionDelete(id: $id) {
+            collection {
+                name
             }
         }
-    """
+    }
+"""
+
+
+def test_delete_collection(staff_api_client, collection, permission_manage_products):
+    query = DELETE_COLLECTION_MUTATION
     collection_id = to_global_id("Collection", collection.id)
     variables = {"id": collection_id}
     response = staff_api_client.post_graphql(
@@ -827,6 +831,40 @@ def test_delete_collection(staff_api_client, collection, permission_manage_produ
     assert data["name"] == collection.name
     with pytest.raises(collection._meta.model.DoesNotExist):
         collection.refresh_from_db()
+
+
+def test_delete_collection_wit_image(
+    staff_api_client,
+    collection_with_image,
+    permission_manage_products,
+    product_with_image,
+    media_root,
+):
+    """Ensure deleting collection deletes background image from storage."""
+    # given
+    query = DELETE_COLLECTION_MUTATION
+    collection = collection_with_image
+    collection.products.add(product_with_image)
+    product_img_paths = [media.image.path for media in product_with_image.media.all()]
+    assert default_storage.exists(collection.background_image.name)
+    assert all([default_storage.exists(path) for path in product_img_paths])
+    collection_id = to_global_id("Collection", collection.id)
+    variables = {"id": collection_id}
+
+    # when
+    response = staff_api_client.post_graphql(
+        query, variables, permissions=[permission_manage_products]
+    )
+
+    # then
+    content = get_graphql_content(response)
+    data = content["data"]["collectionDelete"]["collection"]
+    assert data["name"] == collection.name
+    with pytest.raises(collection._meta.model.DoesNotExist):
+        collection.refresh_from_db()
+    assert not default_storage.exists(collection.background_image.name)
+    # Ensure product images will be not removed
+    assert all([default_storage.exists(path) for path in product_img_paths])
 
 
 def test_add_products_to_collection(

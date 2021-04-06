@@ -2,6 +2,7 @@ from unittest.mock import Mock, patch
 
 import graphene
 import pytest
+from django.core.files.storage import default_storage
 from django.utils.text import slugify
 from graphql_relay import to_global_id
 
@@ -780,6 +781,37 @@ def test_category_delete_mutation(
     assert data["category"]["name"] == category.name
     with pytest.raises(category._meta.model.DoesNotExist):
         category.refresh_from_db()
+
+
+def test_delete_category_with_background_image(
+    staff_api_client,
+    category,
+    product_with_image,
+    permission_manage_products,
+    image_list,
+    media_root,
+):
+    """Ensure deleting category deletes background image from storage."""
+    category.background_image = image_list[0]
+    category.save(update_fields=["background_image"])
+    category.products.add(product_with_image)
+
+    product_img_paths = [media.image.path for media in product_with_image.media.all()]
+    assert default_storage.exists(category.background_image.name)
+    assert all([default_storage.exists(path) for path in product_img_paths])
+
+    variables = {"id": graphene.Node.to_global_id("Category", category.id)}
+    response = staff_api_client.post_graphql(
+        MUTATION_CATEGORY_DELETE, variables, permissions=[permission_manage_products]
+    )
+    content = get_graphql_content(response)
+    data = content["data"]["categoryDelete"]
+    assert data["category"]["name"] == category.name
+    with pytest.raises(category._meta.model.DoesNotExist):
+        category.refresh_from_db()
+    assert not default_storage.exists(category.background_image.name)
+    # Ensure product images will be not removed
+    assert all([default_storage.exists(path) for path in product_img_paths])
 
 
 @patch("saleor.product.utils.update_products_discounted_prices_task")

@@ -6,6 +6,7 @@ from unittest.mock import ANY, Mock, patch
 import graphene
 import pytest
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 from django.utils.dateparse import parse_datetime
 from django.utils.html import strip_tags
 from django.utils.text import slugify
@@ -5268,6 +5269,45 @@ def test_delete_product_variant_in_draft_order(
     assert OrderLine.objects.filter(pk__in=not_draft_order_lines_pks).exists()
 
 
+def test_delete_product_with_image(
+    staff_api_client,
+    product_with_image,
+    variant_with_image,
+    permission_manage_products,
+    media_root,
+):
+    """Ensure deleting product delete also product and variants images from storage."""
+
+    # given
+    query = DELETE_PRODUCT_MUTATION
+    product = product_with_image
+    variant = product.variants.first()
+    node_id = graphene.Node.to_global_id("Product", product.id)
+
+    product_img_paths = [media.image.path for media in product.media.all()]
+    variant_img_paths = [media.image.path for media in variant.media.all()]
+    image_paths = product_img_paths + variant_img_paths
+    # ensure that paths exists in default storage
+    assert all([default_storage.exists(path) for path in image_paths])
+
+    variables = {"id": node_id}
+
+    # when
+    response = staff_api_client.post_graphql(
+        query, variables, permissions=[permission_manage_products]
+    )
+
+    # then
+    content = get_graphql_content(response)
+    data = content["data"]["productDelete"]
+    assert data["product"]["name"] == product.name
+    with pytest.raises(product._meta.model.DoesNotExist):
+        product.refresh_from_db()
+    assert node_id == data["product"]["id"]
+    # ensure paths have been removed
+    assert all([not default_storage.exists(path) for path in image_paths])
+
+
 def test_product_type(user_api_client, product_type, channel_USD):
     query = """
     query ($channel: String){
@@ -6037,6 +6077,35 @@ def test_product_type_delete_mutation(
     assert data["productType"]["name"] == product_type.name
     with pytest.raises(product_type._meta.model.DoesNotExist):
         product_type.refresh_from_db()
+
+
+def test_product_type_delete_mutation_delete_also_product_images(
+    staff_api_client,
+    product_with_image,
+    variant_with_image,
+    permission_manage_product_types_and_attributes,
+):
+    """Ensure deleteing product type delete product and variants images from storage."""
+    query = PRODUCT_TYPE_DELETE_MUTATION
+    product_type = product_with_image.product_type
+
+    product_img_paths = [media.image.path for media in product_with_image.media.all()]
+    variant_img_paths = [media.image.path for media in variant_with_image.media.all()]
+    image_paths = product_img_paths + variant_img_paths
+    # ensure that paths exists in default storage
+    assert all([default_storage.exists(path) for path in image_paths])
+
+    variables = {"id": graphene.Node.to_global_id("ProductType", product_type.id)}
+    response = staff_api_client.post_graphql(
+        query, variables, permissions=[permission_manage_product_types_and_attributes]
+    )
+    content = get_graphql_content(response)
+    data = content["data"]["productTypeDelete"]
+    assert data["productType"]["name"] == product_type.name
+    with pytest.raises(product_type._meta.model.DoesNotExist):
+        product_type.refresh_from_db()
+    # ensure paths have been removed
+    assert all([not default_storage.exists(path) for path in image_paths])
 
 
 def test_product_type_delete_mutation_variants_in_draft_order(
