@@ -694,7 +694,9 @@ def test_order_available_shipping_methods_query(
     order_data = content["data"]["orders"]["edges"][0]["node"]
     method = order_data["availableShippingMethods"][0]
 
-    apply_taxes_to_shipping_mock.assert_called_once_with(shipping_price, ANY)
+    apply_taxes_to_shipping_mock.assert_called_once_with(
+        shipping_price, ANY, fulfilled_order.channel.slug
+    )
     assert expected_price == method["price"]["amount"]
 
 
@@ -820,7 +822,9 @@ def test_order_confirm(
         parameters__amount=payment_txn_preauth.get_total().amount,
     ).exists()
 
-    capture_mock.assert_called_once_with(payment_txn_preauth, ANY)
+    capture_mock.assert_called_once_with(
+        payment_txn_preauth, ANY, channel_slug=order_unconfirmed.channel.slug
+    )
     expected_payload = {
         "order": get_default_order_payload(order_unconfirmed, ""),
         "recipient_email": order_unconfirmed.user.email,
@@ -829,7 +833,8 @@ def test_order_confirm(
         "domain": "mirumee.com",
     }
     mocked_notify.assert_called_once_with(
-        NotifyEventType.ORDER_CONFIRMED, expected_payload
+        NotifyEventType.ORDER_CONFIRMED,
+        expected_payload,
     )
 
 
@@ -3250,6 +3255,7 @@ def test_order_cancel_as_app(
 @mock.patch("saleor.plugins.manager.PluginsManager.notify")
 def test_order_capture(
     mocked_notify,
+    channel_USD,
     staff_api_client,
     permission_manage_orders,
     payment_txn_preauth,
