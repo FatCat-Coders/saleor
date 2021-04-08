@@ -1905,6 +1905,37 @@ def test_delete_variant(
         variant.refresh_from_db()
 
 
+@patch("saleor.product.signals.delete_from_storage")
+@patch("saleor.plugins.manager.PluginsManager.product_variant_deleted")
+def test_delete_variant_with_image(
+    product_variant_deleted_webhook_mock,
+    delete_from_storage_mock,
+    staff_api_client,
+    variant_with_image,
+    permission_manage_products,
+    media_root,
+):
+    """Ensure deleting variant doesn't delete linked product image."""
+
+    query = DELETE_VARIANT_MUTATION
+    variant = variant_with_image
+
+    variant_id = graphene.Node.to_global_id("ProductVariant", variant.pk)
+    variables = {"id": variant_id}
+    response = staff_api_client.post_graphql(
+        query, variables, permissions=[permission_manage_products]
+    )
+    content = get_graphql_content(response)
+    flush_post_commit_hooks()
+    data = content["data"]["productVariantDelete"]
+
+    product_variant_deleted_webhook_mock.assert_called_once_with(variant)
+    assert data["productVariant"]["sku"] == variant.sku
+    with pytest.raises(variant._meta.model.DoesNotExist):
+        variant.refresh_from_db()
+    delete_from_storage_mock.assert_not_called()
+
+
 def test_delete_variant_in_draft_order(
     staff_api_client,
     order_line,
