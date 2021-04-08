@@ -42,6 +42,7 @@ All notable, unreleased changes to this project will be documented in this file.
 - Fix dataloader for fetching checkout info - #7084 by @IKarbowiak
 - Update also draft order line total price after getting the unit price from plugin - #7080 by @IKarbowiak
 - Fix failing product tasks when instances are removed - #7092 by @IKarbowiak
+- Update GraphQL endpoint to only match exactly `/graphql/` without trailing characters - #7117 by @IKarbowiak
 - Add description to shipping method - #7116 by @IKarbowiak
 
 ### Breaking
@@ -54,6 +55,10 @@ All notable, unreleased changes to this project will be documented in this file.
 - Drop `apply_taxes_to_shipping_price_range` plugin hook - #6746 by @maarcingebala
 - Drop `CHECKOUT_QUANTITY_CHANGED` webhook - #6797 by @d-wysocki
 - Drop deprecated `taxRate` field from `ProductType` - #6795 by @d-wysocki
+- Unconfirmed order manipulation - #6829 by @tomaszszymanski129
+  - Remove mutations for draft order lines manipulation: `draftOrderLinesCreate`, `draftOrderLineDelete`, `draftOrderLineUpdate`
+  - Use `orderLinesCreate`, `orderLineDelete`, `orderLineUpdate` mutations instead.
+  - Order events enums `DRAFT_ADDED_PRODUCTS` and `DRAFT_REMOVED_PRODUCTS` are now `ADDED_PRODUCTS` and `REMOVED_PRODUCTS`
 - Email interface as a plugin - #6301 by @korycins
 - Remove resolving user's location from GeoIP; drop `PaymentInput.billingAddress` input field - #6784 by @maarcingebala
 - Change the payload of the order webhook to handle discounts list, added fields: `Order.discounts`,
