@@ -76,6 +76,12 @@ All notable, unreleased changes to this project will be documented in this file.
 - Fix doubling price in checkout for products without tax - #7056 by @IKarbowiak
   - Introduce changes in plugins method:
     - `calculate_checkout_subtotal` has been dropped from plugins, for correct subtotal calculation, `calculate_checkout_line_total` must be set (manager method for calculating checkout subtotal uses `calculate_checkout_line_total` method)
+- Extend plugins manager to configure plugins for each plugins:
+  - Introduce changes in API:
+    - `paymentInitialize` - add `channel` parameter. Optional when only one  channel exists.
+    - `pluginUpdate` - add `channel` parameter.
+    - `availablePaymentGateways` - add `channel` parameter.
+    - `storedPaymentSources` - add `channel` parameter.
 
 ### Other
 
