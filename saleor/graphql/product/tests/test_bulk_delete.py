@@ -324,9 +324,9 @@ def test_delete_products(
     assert OrderLine.objects.filter(pk__in=not_draft_order_lines_pks).exists()
 
 
-@patch("saleor.product.signals.delete_from_storage")
+@patch("saleor.product.signals.delete_versatile_image")
 def test_delete_products_with_images(
-    delete_from_storage_mock,
+    delete_versatile_image_mock,
     staff_api_client,
     product_list,
     image_list,
@@ -351,10 +351,10 @@ def test_delete_products_with_images(
     content = get_graphql_content(response)
 
     assert content["data"]["productBulkDelete"]["count"] == 3
-    assert delete_from_storage_mock.call_count == 2
+    assert delete_versatile_image_mock.call_count == 2
     assert {
-        call_args.args[0] for call_args in delete_from_storage_mock.call_args_list
-    } == {media1.image.name, media2.image.name}
+        call_args.args[0] for call_args in delete_versatile_image_mock.call_args_list
+    } == {media1.image, media2.image}
 
 
 @patch("saleor.plugins.webhook.plugin.trigger_webhooks_for_event.delay")
@@ -516,11 +516,11 @@ def test_delete_product_variants(
     )
 
 
-@patch("saleor.product.signals.delete_from_storage")
+@patch("saleor.product.signals.delete_versatile_image")
 @patch("saleor.plugins.manager.PluginsManager.product_variant_deleted")
 def test_delete_product_variants_with_images(
     product_variant_deleted_webhook_mock,
-    delete_from_storage_mock,
+    delete_versatile_image_mock,
     staff_api_client,
     product_variant_list,
     image_list,
@@ -563,7 +563,7 @@ def test_delete_product_variants_with_images(
         product_variant_deleted_webhook_mock.call_count
         == content["data"]["productVariantBulkDelete"]["count"]
     )
-    delete_from_storage_mock.assert_not_called()
+    delete_versatile_image_mock.assert_not_called()
 
 
 def test_delete_product_variants_in_draft_orders(
